@@ -71,7 +71,7 @@ def create_xlsx_file():
     :return:
     """
     # Create a workbook and add a worksheet.
-    workbook = xlsxwriter.Workbook('Pivot.xlsx')
+    workbook = xlsxwriter.Workbook('../Pivot.xlsx')
     worksheet = workbook.add_worksheet()
     worksheet.set_default_row(20)
 
