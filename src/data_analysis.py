@@ -1,7 +1,7 @@
-# This is a sample Python script.
+"""
+pyinstaller -y -F --clean data_analysis.py
+"""
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import sqlite3
 from CheckmarxPythonSDK.CxPortalSoapApiSDK import get_pivot_data
 import xlsxwriter
