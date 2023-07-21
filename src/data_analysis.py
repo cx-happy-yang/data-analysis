@@ -6,7 +6,16 @@ import sqlite3
 from CheckmarxPythonSDK.CxPortalSoapApiSDK import get_pivot_data
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
+import logging
 
+# create logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 db = sqlite3.connect(":memory:")
 db.execute("""CREATE TABLE IF NOT EXISTS results (TEAM_NAME VARCHAR, PROJECT_NAME VARCHAR, QUERY_NAME VARCHAR, 
 RESULT_SEVERITY INTEGER, RESULT_QUANTITY INTEGER, PRIMARY KEY (TEAM_NAME, PROJECT_NAME, QUERY_NAME) )""")
@@ -39,6 +48,12 @@ def get_data_by_api_and_write_to_db(arguments):
     date_from = arguments.date_from
     date_to = arguments.date_to
 
+    logger.info(f"arguments: pivot_view_client_type: {pivot_view_client_type}, "
+                f"include_not_exploitable: {include_not_exploitable}, "
+                f"range_type: {range_type}, "
+                f"date_from: {date_from}, "
+                f"date_to: {date_to}")
+
     # Get Past Month pivot data
     pivot_data = get_pivot_data(
         pivot_view_client_type=pivot_view_client_type,
@@ -63,6 +78,7 @@ def get_data_by_api_and_write_to_db(arguments):
             db.execute("""INSERT INTO results (TEAM_NAME, PROJECT_NAME, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY) 
             VALUES (?,?,?,?,?) ON CONFLICT (TEAM_NAME, PROJECT_NAME, QUERY_NAME) DO UPDATE SET RESULT_QUANTITY = ?""",
                        (team_name, project_name, query_name, result_severity, result_quantity, result_quantity))
+    logger.info("finish write data into in-memory sqlite3")
 
 
 def create_xlsx_file():
@@ -71,6 +87,7 @@ def create_xlsx_file():
     :return:
     """
     # Create a workbook and add a worksheet.
+    logger.info("start creating Pivot.xlsx file")
     workbook = xlsxwriter.Workbook('../Pivot.xlsx')
     worksheet = workbook.add_worksheet()
     worksheet.set_default_row(20)
@@ -177,6 +194,7 @@ def create_xlsx_file():
             worksheet.write_number(row_index, query_dict.get(query_name), result_quantity)
     worksheet.autofit()
     workbook.close()
+    logger.info("finish creating Pivot.xlsx file")
 
 
 # Press the green button in the gutter to run the script.
