@@ -12,11 +12,40 @@ db.execute("""CREATE TABLE IF NOT EXISTS results (TEAM_NAME VARCHAR, PROJECT_NAM
 RESULT_SEVERITY INTEGER, RESULT_QUANTITY INTEGER, PRIMARY KEY (TEAM_NAME, PROJECT_NAME, QUERY_NAME) )""")
 
 
-def get_data_by_api_and_write_to_db():
+def get_command_line_arguments():
+    """
+
+    Returns:
+        Namespace
+    """
+    import argparse
+    description = 'A simple command-line interface for CxSAST in Python.'
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--pivot_view_client_type', default="LastMonthProjectScans", required=True,
+                        help="AllProjectScans, LastMonthProjectScans, ProjectsLastScan, LastWeekOWASPTop10")
+    parser.add_argument('--include_not_exploitable', default=True, required=True, help="true or false")
+    parser.add_argument('--range_type', default="PAST_MONTH", required=True,
+                        help="ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
+    parser.add_argument('--date_from', help="example: 2023-06-01-0-0-0")
+    parser.add_argument('--date_to', help="example: 2023-06-30-0-0-0")
+    return parser.parse_known_args()
+
+
+def get_data_by_api_and_write_to_db(arguments):
+    arguments = arguments[0]
+    pivot_view_client_type = arguments.pivot_view_client_type
+    include_not_exploitable = False if arguments.include_not_exploitable.lower() == "false" else True
+    range_type = arguments.range_type
+    date_from = arguments.date_from
+    date_to = arguments.date_to
+
     # Get Past Month pivot data
     pivot_data = get_pivot_data(
-        pivot_view_client_type="LastMonthProjectScans", include_not_exploitable=True, range_type="PAST_MONTH",
-        date_from="2023-06-01-0-0-0", date_to="2023-06-30-0-0-0"
+        pivot_view_client_type=pivot_view_client_type,
+        include_not_exploitable=include_not_exploitable,
+        range_type=range_type,
+        date_from=date_from,
+        date_to=date_to
     )
 
     for row in pivot_data.PivotTable.Rows.CxPivotRow:
@@ -152,5 +181,6 @@ def create_xlsx_file():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    get_data_by_api_and_write_to_db()
+    arguments = get_command_line_arguments()
+    get_data_by_api_and_write_to_db(arguments)
     create_xlsx_file()
