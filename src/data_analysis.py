@@ -7,6 +7,7 @@ from CheckmarxPythonSDK.CxPortalSoapApiSDK import get_pivot_data
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 import logging
+from os.path import exists
 
 # create logger
 logger = logging.getLogger(__name__)
@@ -37,22 +38,26 @@ def get_command_line_arguments():
                         help="ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
     parser.add_argument('--date_from', help="example: 2023-06-01-0-0-0")
     parser.add_argument('--date_to', help="example: 2023-06-30-0-0-0")
-    return parser.parse_known_args()
-
-
-def get_data_by_api_and_write_to_db(arguments):
+    parser.add_argument('--report_file_path', help="report file path")
+    arguments = parser.parse_known_args()
     arguments = arguments[0]
     pivot_view_client_type = arguments.pivot_view_client_type
     include_not_exploitable = False if arguments.include_not_exploitable.lower() == "false" else True
     range_type = arguments.range_type
     date_from = arguments.date_from
     date_to = arguments.date_to
-
+    report_file_path = arguments.report_file_path
     logger.info(f"arguments: pivot_view_client_type: {pivot_view_client_type}, "
                 f"include_not_exploitable: {include_not_exploitable}, "
                 f"range_type: {range_type}, "
                 f"date_from: {date_from}, "
-                f"date_to: {date_to}")
+                f"date_to: {date_to},"
+                f"report_file_path: {report_file_path}")
+
+    return pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to, report_file_path
+
+
+def get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to):
 
     # Get Past Month pivot data
     pivot_data = get_pivot_data(
@@ -81,14 +86,16 @@ def get_data_by_api_and_write_to_db(arguments):
     logger.info("finish write data into in-memory sqlite3")
 
 
-def create_xlsx_file():
+def create_xlsx_file(report_path):
     """
     create xlsx file based on the data, and following the same layout as the data analysis template.
     :return:
     """
     # Create a workbook and add a worksheet.
     logger.info("start creating Pivot.xlsx file")
-    workbook = xlsxwriter.Workbook('../Pivot.xlsx')
+    if report_path is None:
+        report_path = "./Pivot.xlsx"
+    workbook = xlsxwriter.Workbook(report_path)
     worksheet = workbook.add_worksheet()
     worksheet.set_default_row(20)
 
@@ -199,6 +206,7 @@ def create_xlsx_file():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    arguments = get_command_line_arguments()
-    get_data_by_api_and_write_to_db(arguments)
-    create_xlsx_file()
+    pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to, report_file_path = \
+        get_command_line_arguments()
+    get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to)
+    create_xlsx_file(report_file_path)
