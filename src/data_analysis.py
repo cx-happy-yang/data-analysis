@@ -31,6 +31,9 @@ def get_command_line_arguments():
     import argparse
     description = 'A simple command-line interface for CxSAST in Python.'
     parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--cxsast_base_url', required=True, help="CxSAST base url, for example: https://localhost")
+    parser.add_argument('--cxsast_username', required=True, help="CxSAST username")
+    parser.add_argument('--cxsast_password', required=True, help="CxSAST password")
     parser.add_argument('--pivot_view_client_type', default="LastMonthProjectScans", required=True,
                         help="AllProjectScans, LastMonthProjectScans, ProjectsLastScan, LastWeekOWASPTop10")
     parser.add_argument('--include_not_exploitable', default=True, required=True, help="true or false")
@@ -38,27 +41,38 @@ def get_command_line_arguments():
                         help="ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
     parser.add_argument('--date_from', help="example: 2023-06-01-0-0-0")
     parser.add_argument('--date_to', help="example: 2023-06-30-0-0-0")
+    parser.add_argument('--queries', default="ALL", help="example: Code_Injection,Stored_XSS")
     parser.add_argument('--report_file_path', help="report file path")
     arguments = parser.parse_known_args()
     arguments = arguments[0]
+    cxsast_base_url = arguments.cxsast_base_url
+    cxsast_username = arguments.cxsast_username
+    cxsast_password = arguments.cxsast_password
     pivot_view_client_type = arguments.pivot_view_client_type
     include_not_exploitable = False if arguments.include_not_exploitable.lower() == "false" else True
     range_type = arguments.range_type
     date_from = arguments.date_from
     date_to = arguments.date_to
+    queries = arguments.queries
     report_file_path = arguments.report_file_path
-    logger.info(f"arguments: pivot_view_client_type: {pivot_view_client_type}, "
+    logger.info(f"arguments: "
+                f"cxsast_base_url: {cxsast_base_url}, "
+                f"cxsast_username: {cxsast_username}, "
+                f"cxsast_password: *******, "
+                f"pivot_view_client_type: {pivot_view_client_type}, "
                 f"include_not_exploitable: {include_not_exploitable}, "
                 f"range_type: {range_type}, "
                 f"date_from: {date_from}, "
-                f"date_to: {date_to},"
+                f"date_to: {date_to}, "
+                f"queries: {queries}, "
                 f"report_file_path: {report_file_path}")
 
-    return pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to, report_file_path
+    return pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to, queries, report_file_path
 
 
-def get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to):
-
+def get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to,
+                                    queries):
+    queries = queries.split(",")
     # Get Past Month pivot data
     pivot_data = get_pivot_data(
         pivot_view_client_type=pivot_view_client_type,
@@ -73,7 +87,7 @@ def get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploita
         team_name = value[0]
         project_name = value[1]
         query_name = value[2]
-        if query_name == "No Results":
+        if query_name == "No Results" or query_name not in queries:
             continue
         scan_date = value[4]
         scan_time = value[5]
@@ -99,7 +113,10 @@ def create_xlsx_file(report_path):
     worksheet = workbook.add_worksheet()
     worksheet.set_default_row(20)
 
-    title_format = workbook.add_format({'align': 'left', 'locked': True, 'text_wrap': True, 'border': 1, 'bg_color': '#F0F0F0',
+    title_format = workbook.add_format({'align': 'left',
+                                        'locked': True,
+                                        'text_wrap': True, 'border': 1,
+                                        'bg_color': '#F0F0F0',
                                         'border_color': '#A0A0A0'})
     worksheet.merge_range('A1:A2', '')
 
@@ -115,50 +132,55 @@ def create_xlsx_file(report_path):
         number_of_medium = db.execute(sql_count.format(severity=medium_severity)).fetchone()[0]
         number_of_low = db.execute(sql_count.format(severity=low_severity)).fetchone()[0]
         number_of_info = db.execute(sql_count.format(severity=info_severity)).fetchone()[0]
-
-        high_column_index_start = 1
-        high_column_index_end = number_of_high
-        high_total_column_index = high_column_index_end + 1
-        worksheet.merge_range(0, high_column_index_start, 0, high_column_index_end, 'High', title_format)
-        worksheet.merge_range(0, high_total_column_index, 1, high_total_column_index, 'High Total', title_format)
-        current_high_column_index = high_column_index_start
-        for row in db.execute(sql_query.format(severity=high_severity)):
-            worksheet.write(1, current_high_column_index, row[0], title_format)
-            query_dict.update({row[0]: current_high_column_index})
-            current_high_column_index += 1
-
-        medium_column_index_start = high_total_column_index + 1
-        medium_column_index_end = medium_column_index_start + number_of_medium - 1
-        medium_total_column_index = medium_column_index_end + 1
-        worksheet.merge_range(0, medium_column_index_start, 0, medium_column_index_end, 'Medium', title_format)
-        worksheet.merge_range(0, medium_total_column_index, 1, medium_total_column_index, 'Medium Total', title_format)
-        current_medium_column_index = medium_column_index_start
-        for row in db.execute(sql_query.format(severity=medium_severity)):
-            worksheet.write(1, current_medium_column_index, row[0], title_format)
-            query_dict.update({row[0]: current_medium_column_index})
-            current_medium_column_index += 1
-
-        low_column_index_start = medium_total_column_index + 1
-        low_column_index_end = low_column_index_start + number_of_low - 1
-        low_total_column_index = low_column_index_end + 1
-        worksheet.merge_range(0, low_column_index_start, 0, low_column_index_end, 'Low', title_format)
-        worksheet.merge_range(0, low_total_column_index, 1, low_total_column_index, 'Low Total', title_format)
-        current_low_column_index = low_column_index_start
-        for row in db.execute(sql_query.format(severity=low_severity)):
-            worksheet.write(1, current_low_column_index, row[0], title_format)
-            query_dict.update({row[0]: current_low_column_index})
-            current_low_column_index += 1
-
-        info_column_index_start = low_total_column_index + 1
-        info_column_index_end = info_column_index_start + number_of_info - 1
-        info_total_column_index = info_column_index_end + 1
-        worksheet.merge_range(0, info_column_index_start, 0, info_column_index_end, 'Info', title_format)
-        worksheet.merge_range(0, info_total_column_index, 1, info_total_column_index, 'Info Total', title_format)
-        current_info_column_index = info_column_index_start
-        for row in db.execute(sql_query.format(severity=info_severity)):
-            worksheet.write(1, current_info_column_index, row[0], title_format)
-            query_dict.update({row[0]: current_info_column_index})
-            current_info_column_index += 1
+        column_index_start = 1
+        if number_of_high > 0:
+            high_column_index_start = column_index_start
+            high_column_index_end = number_of_high
+            high_total_column_index = high_column_index_end + 1
+            worksheet.merge_range(0, high_column_index_start, 0, high_column_index_end, 'High', title_format)
+            worksheet.merge_range(0, high_total_column_index, 1, high_total_column_index, 'High Total', title_format)
+            current_high_column_index = high_column_index_start
+            for row in db.execute(sql_query.format(severity=high_severity)):
+                worksheet.write(1, current_high_column_index, row[0], title_format)
+                query_dict.update({row[0]: current_high_column_index})
+                current_high_column_index += 1
+            column_index_start = high_total_column_index
+        if number_of_medium > 0:
+            medium_column_index_start = column_index_start + 1
+            medium_column_index_end = medium_column_index_start + number_of_medium - 1
+            medium_total_column_index = medium_column_index_end + 1
+            worksheet.merge_range(0, medium_column_index_start, 0, medium_column_index_end, 'Medium', title_format)
+            worksheet.merge_range(0, medium_total_column_index, 1, medium_total_column_index, 'Medium Total', title_format)
+            current_medium_column_index = medium_column_index_start
+            for row in db.execute(sql_query.format(severity=medium_severity)):
+                worksheet.write(1, current_medium_column_index, row[0], title_format)
+                query_dict.update({row[0]: current_medium_column_index})
+                current_medium_column_index += 1
+            column_index_start = medium_total_column_index
+        if number_of_low > 0:
+            low_column_index_start = column_index_start + 1
+            low_column_index_end = low_column_index_start + number_of_low - 1
+            low_total_column_index = low_column_index_end + 1
+            worksheet.merge_range(0, low_column_index_start, 0, low_column_index_end, 'Low', title_format)
+            worksheet.merge_range(0, low_total_column_index, 1, low_total_column_index, 'Low Total', title_format)
+            current_low_column_index = low_column_index_start
+            for row in db.execute(sql_query.format(severity=low_severity)):
+                worksheet.write(1, current_low_column_index, row[0], title_format)
+                query_dict.update({row[0]: current_low_column_index})
+                current_low_column_index += 1
+            column_index_start = low_total_column_index
+        if number_of_info > 0:
+            info_column_index_start = column_index_start + 1
+            info_column_index_end = info_column_index_start + number_of_info - 1
+            info_total_column_index = info_column_index_end + 1
+            worksheet.merge_range(0, info_column_index_start, 0, info_column_index_end, 'Info', title_format)
+            worksheet.merge_range(0, info_total_column_index, 1, info_total_column_index, 'Info Total', title_format)
+            current_info_column_index = info_column_index_start
+            for row in db.execute(sql_query.format(severity=info_severity)):
+                worksheet.write(1, current_info_column_index, row[0], title_format)
+                query_dict.update({row[0]: current_info_column_index})
+                current_info_column_index += 1
+            column_index_start = info_total_column_index
 
         row_index = 1
         team_project = None
@@ -178,25 +200,29 @@ def create_xlsx_file(report_path):
                 worksheet.write(row_index, 0, project_name, title_format)
                 row_for_total = row_index + 1
                 # high_total
-                high_column_start_letter = xl_col_to_name(high_column_index_start)
-                high_column_end_letter = xl_col_to_name(high_column_index_end)
-                func_high = f"=SUM({high_column_start_letter}{row_for_total}:{high_column_end_letter}{row_for_total})"
-                worksheet.write_formula(row_index, high_total_column_index, func_high)
+                if number_of_high > 0:
+                    high_column_start_letter = xl_col_to_name(high_column_index_start)
+                    high_column_end_letter = xl_col_to_name(high_column_index_end)
+                    func_high = f"=SUM({high_column_start_letter}{row_for_total}:{high_column_end_letter}{row_for_total})"
+                    worksheet.write_formula(row_index, high_total_column_index, func_high)
                 # medium total
-                medium_column_start_letter = xl_col_to_name(medium_column_index_start)
-                medium_column_end_letter = xl_col_to_name(medium_column_index_end)
-                func_medium = f"=SUM({medium_column_start_letter}{row_for_total}:{medium_column_end_letter}{row_for_total})"
-                worksheet.write_formula(row_index, medium_total_column_index, func_medium)
+                if number_of_medium > 0:
+                    medium_column_start_letter = xl_col_to_name(medium_column_index_start)
+                    medium_column_end_letter = xl_col_to_name(medium_column_index_end)
+                    func_medium = f"=SUM({medium_column_start_letter}{row_for_total}:{medium_column_end_letter}{row_for_total})"
+                    worksheet.write_formula(row_index, medium_total_column_index, func_medium)
                 # low total
-                low_column_start_letter = xl_col_to_name(low_column_index_start)
-                low_column_end_letter = xl_col_to_name(low_column_index_end)
-                func_low = f"=SUM({low_column_start_letter}{row_for_total}:{low_column_end_letter}{row_for_total})"
-                worksheet.write_formula(row_index, low_total_column_index, func_low)
+                if number_of_low > 0:
+                    low_column_start_letter = xl_col_to_name(low_column_index_start)
+                    low_column_end_letter = xl_col_to_name(low_column_index_end)
+                    func_low = f"=SUM({low_column_start_letter}{row_for_total}:{low_column_end_letter}{row_for_total})"
+                    worksheet.write_formula(row_index, low_total_column_index, func_low)
                 # info total
-                info_column_start_letter = xl_col_to_name(info_column_index_start)
-                info_column_end_letter = xl_col_to_name(info_column_index_end)
-                func_info = f"=SUM({info_column_start_letter}{row_for_total}:{info_column_end_letter}{row_for_total})"
-                worksheet.write_formula(row_index, info_total_column_index, func_info)
+                if number_of_info > 0:
+                    info_column_start_letter = xl_col_to_name(info_column_index_start)
+                    info_column_end_letter = xl_col_to_name(info_column_index_end)
+                    func_info = f"=SUM({info_column_start_letter}{row_for_total}:{info_column_end_letter}{row_for_total})"
+                    worksheet.write_formula(row_index, info_total_column_index, func_info)
 
             worksheet.write_number(row_index, query_dict.get(query_name), result_quantity)
     worksheet.autofit()
@@ -206,7 +232,8 @@ def create_xlsx_file(report_path):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to, report_file_path = \
+    pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to, queries, report_file_path = \
         get_command_line_arguments()
-    get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to)
+    get_data_by_api_and_write_to_db(pivot_view_client_type, include_not_exploitable, range_type, date_from, date_to,
+                                    queries)
     create_xlsx_file(report_file_path)
