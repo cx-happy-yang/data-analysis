@@ -35,14 +35,14 @@ def get_command_line_arguments():
     parser.add_argument('--cxsast_base_url', required=True, help="CxSAST base url, for example: https://localhost")
     parser.add_argument('--cxsast_username', required=True, help="CxSAST username")
     parser.add_argument('--cxsast_password', required=True, help="CxSAST password")
-    parser.add_argument('--include_not_exploitable', default=True, required=True, help="true or false")
+    parser.add_argument('--include_not_exploitable', default="False", required=True, help="true or false")
     parser.add_argument('--range_type', default="CUSTOM", required=True,
                         help="ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
     parser.add_argument('--date_from', help="example: 2023-06-01-0-0-0")
     parser.add_argument('--date_to', help="example: 2023-06-30-0-0-0")
     parser.add_argument('--queries', default="ALL", help="example: Code_Injection,Stored_XSS")
     parser.add_argument('--severities', default="ALL", help="example: Critical,High,Medium,Low,Info")
-    parser.add_argument('--renamed_high_to_critical', default=False, help="true or false")
+    parser.add_argument('--renamed_high_to_critical', default="False", help="true or false")
     parser.add_argument('--report_file_path', help="report file path")
     arguments = parser.parse_known_args()
     arguments = arguments[0]
