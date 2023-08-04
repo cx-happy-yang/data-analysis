@@ -51,8 +51,10 @@ def get_command_line_arguments():
         raise ValueError(f"command line argument: range_type should be any one of the following:\n"
                          f"ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
 
-    severity_list = ["Critical", "High", "Medium", "Low", "Info"]
-    if arguments.severities != "ALL" and not set(arguments.severities.split(",")).issubset(set(severity_list)):
+    severity_list = ["critical", "high", "medium", "low", "info"]
+
+    if arguments.severities != "ALL" and \
+            not set([item.lower() for item in arguments.severities.split(",")]).issubset(set(severity_list)):
         raise ValueError(f"command line argument: severity should be any combinations of the following:\n"
                          f"Critical, High, Medium, Low, Info")
 
@@ -64,7 +66,8 @@ def get_command_line_arguments():
         "date_from": arguments.date_from,
         "date_to": arguments.date_to,
         "queries": arguments.queries,
-        "severities": arguments.severities.split(",") if arguments.severities != "ALL" else "ALL",
+        "severities": [item.lower() for item in arguments.severities.split(",")]
+        if arguments.severities != "ALL" else "ALL",
         "renamed_high_to_critical": False if arguments.renamed_high_to_critical.lower() == "false" else True,
         "report_file_path": arguments.report_file_path
     }
@@ -208,7 +211,7 @@ def create_xlsx_file(severity_list, severity_map, report_file_path):
                 column_index_end = column_index_start + number_of_query - 1
                 total_column_index = column_index_end + 1
                 worksheet.merge_range(0, column_index_start, 0, column_index_end, se, title_format)
-                worksheet.merge_range(0, total_column_index, 1, total_column_index, se + ' Total', title_format)
+                worksheet.merge_range(0, total_column_index, 1, total_column_index, se + ' total', title_format)
                 query_dict.update({se + ' Total': total_column_index})
                 for row in db.execute(sql_query):
                     worksheet.write(1, column_index, row[0], title_format)
@@ -256,17 +259,17 @@ if __name__ == '__main__':
     cli_args = get_command_line_arguments()
     renamed_high_to_critical = cli_args.get("renamed_high_to_critical")
     severity_dict = {
-        "High": "3",
-        "Medium": "2",
-        "Low": "1",
-        "Info": "0",
+        "high": "3",
+        "medium": "2",
+        "low": "1",
+        "info": "0",
     }
     if renamed_high_to_critical:
         severity_dict = {
-            "Critical": "3",
-            "High": "2",
-            "Medium": "1",
-            "Low": "0",
+            "critical": "3",
+            "high": "2",
+            "medium": "1",
+            "low": "0",
         }
     get_data_by_api_and_write_to_db(cli_args, severity_dict)
     severity_list = cli_args.get("severities")
