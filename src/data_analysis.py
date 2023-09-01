@@ -124,7 +124,10 @@ def get_data_by_api_and_write_to_db(args, severity_map):
         )
         logger.info(f"Successfully get this day {day.date()} data")
 
-        if pivot_data.PivotTable is None:
+        if (pivot_data
+                or pivot_data.PivotTable is None
+                or pivot_data.PivotTable.Rows is None
+                or pivot_data.PivotTable.Rows.CxPivotRow):
             logger.info(f"This day {day.date()} data is empty")
             continue
 
