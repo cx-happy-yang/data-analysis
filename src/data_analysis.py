@@ -3,7 +3,12 @@ pyinstaller -y -F --clean data_analysis.py
 """
 
 import sqlite3
-from CheckmarxPythonSDK.CxPortalSoapApiSDK import get_pivot_data
+from CheckmarxPythonSDK.CxOne import (
+    get_a_list_of_projects,
+    get_branches,
+    get_last_scan_info,
+    get_summary_for_many_scans,
+)
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 import logging
@@ -18,9 +23,10 @@ ch.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-db = sqlite3.connect(":memory:")
-db.execute("""CREATE TABLE IF NOT EXISTS results (TEAM_NAME VARCHAR, PROJECT_NAME VARCHAR, QUERY_NAME VARCHAR, 
-RESULT_SEVERITY INTEGER, RESULT_QUANTITY INTEGER, PRIMARY KEY (TEAM_NAME, PROJECT_NAME, QUERY_NAME) )""")
+# db = sqlite3.connect(":memory:")
+db = sqlite3.connect("test.db")
+db.execute("""CREATE TABLE IF NOT EXISTS results (PROJECT_ID VARCHAR, PROJECT_NAME VARCHAR, BRANCH VARCHAR,
+QUERY_NAME VARCHAR, RESULT_SEVERITY VARCHAR, RESULT_QUANTITY INTEGER, PRIMARY KEY (PROJECT_ID, BRANCH, QUERY_NAME) )""")
 
 
 def get_command_line_arguments():
@@ -32,17 +38,20 @@ def get_command_line_arguments():
     import argparse
     description = 'A simple command-line interface for CxSAST in Python.'
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('--cxsast_base_url', required=True, help="CxSAST base url, for example: https://localhost")
-    parser.add_argument('--cxsast_username', required=True, help="CxSAST username")
-    parser.add_argument('--cxsast_password', required=True, help="CxSAST password")
+    parser.add_argument('--cxone_access_control_url', required=True, help="CxOne iam url")
+    parser.add_argument('--cxone_server', required=True, help="CxOne server url")
+    parser.add_argument('--cxone_tenant_name', required=True, help="CxOne tenant name")
+    parser.add_argument('--cxone_grant_type', required=True, help="CxOne grant type, refresh_token")
+    parser.add_argument('--cxone_refresh_token', required=True, help="CxOne API Key")
+    parser.add_argument('--cxone_proxy', help="proxy URL")
+
     parser.add_argument('--include_not_exploitable', default="False", required=True, help="true or false")
     parser.add_argument('--range_type', default="CUSTOM", required=True,
                         help="ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
     parser.add_argument('--date_from', help="example: 2023-06-01-0-0-0")
     parser.add_argument('--date_to', help="example: 2023-06-30-0-0-0")
     parser.add_argument('--queries', default="ALL", help="example: Code_Injection,Stored_XSS")
-    parser.add_argument('--severities', default="ALL", help="example: Critical,High,Medium,Low,Info")
-    parser.add_argument('--renamed_high_to_critical', default="False", help="true or false")
+    parser.add_argument('--severities', default="ALL", help="example: High,Medium,Low,Info")
     parser.add_argument('--report_file_path', help="report file path")
     arguments = parser.parse_known_args()
     arguments = arguments[0]
@@ -51,43 +60,39 @@ def get_command_line_arguments():
         raise ValueError(f"command line argument: range_type should be any one of the following:\n"
                          f"ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
 
-    severity_list = ["critical", "high", "medium", "low", "info"]
+    severity_list = ["high", "medium", "low"]
 
     if arguments.severities != "ALL" and \
             not set([item.lower() for item in arguments.severities.split(",")]).issubset(set(severity_list)):
         raise ValueError(f"command line argument: severity should be any combinations of the following:\n"
-                         f"Critical, High, Medium, Low, Info")
+                         f"High, Medium, Low")
 
     args = {
-        "cxsast_base_url": arguments.cxsast_base_url,
-        "cxsast_username": arguments.cxsast_username,
+        "cxone_access_control_url": arguments.cxone_access_control_url,
+        "cxone_server": arguments.cxone_server,
+        "cxone_tenant_name": arguments.cxone_tenant_name,
+        "cxone_grant_type": arguments.cxone_grant_type,
+        "cxone_refresh_token": arguments.cxone_refresh_token,
+        "cxone_proxy": arguments.cxone_proxy,
+
         "include_not_exploitable": False if arguments.include_not_exploitable.lower() == "false" else True,
         "range_type": arguments.range_type,
         "date_from": arguments.date_from,
         "date_to": arguments.date_to,
-        "queries": arguments.queries,
-        "severities": [item.lower() for item in arguments.severities.split(",")]
-        if arguments.severities != "ALL" else "ALL",
-        "renamed_high_to_critical": False if arguments.renamed_high_to_critical.lower() == "false" else True,
+        "queries": arguments.queries.split(",") if arguments.queries != "ALL" else "ALL",
+        "severities": [item.lower() for item in
+                       arguments.severities.split(",")] if arguments.severities != "ALL" else "ALL",
         "report_file_path": arguments.report_file_path
     }
     logger.info(args)
     return args
 
 
-def get_data_by_api_and_write_to_db(args, severity_map):
+def get_data_by_api_and_write_to_db(args, severities):
     queries = args.get("queries")
-    severities = args.get("severities")
-    if queries != "ALL":
-        queries = queries.split(",")
-    result_severity_list = []
-    if severities != "ALL":
-        for se in severities:
-            result_severity_list.append(severity_map.get(se))
-    # Because the data is so large, it would be timeout to get week data or even month data.
-    # To Get Past Month pivot data, I will have to break it into days, and send http request day by day.
     range_type = args.get("range_type")
     date_format = "%Y-%m-%d-%H-%M-%S"
+    time_stamp_format = "%Y-%m-%dT%H:%M:%S.%fZ"
 
     def get_date_list(number_of_days, base=None):
         if base is None:
@@ -113,49 +118,73 @@ def get_data_by_api_and_write_to_db(args, severity_map):
         day_delta = (date_to - date_from).days
         calculated_date_range = get_date_list(day_delta, date_to)
 
-    for day in calculated_date_range:
-        logger.info(f"HTTP call to get this day {day.date()} data")
-        pivot_data = get_pivot_data(
-            pivot_view_client_type="ProjectsLastScan",
-            include_not_exploitable=args.get("include_not_exploitable"),
-            range_type="CUSTOM",
-            date_from=day.strftime("%Y-%m-%d-0-0-0"),
-            date_to=day.strftime("%Y-%m-%d-23-59-59")
-        )
-        logger.info(f"Successfully get this day {day.date()} data")
+    start_date_time = datetime.datetime.strptime(calculated_date_range[-1].strftime("%Y-%m-%d-0-0-0"), date_format)
+    end_date_time = datetime.datetime.strptime(calculated_date_range[0].strftime("%Y-%m-%d-23-59-59"), date_format)
 
-        if (pivot_data is None
-                or pivot_data.PivotTable is None
-                or pivot_data.PivotTable.Rows is None
-                or pivot_data.PivotTable.Rows.CxPivotRow is None):
-            logger.info(f"This day {day.date()} data is empty")
+    project_collection = get_a_list_of_projects()
+    project_id_names = {}
+    for project in project_collection.projects:
+        project_id_names.update({project.id: project.name})
+    project_branches = {}
+    for project_id in project_id_names.keys():
+        project_branches.update({project_id: get_branches(limit=1024, project_id=project_id)})
+    for project_id, branches in project_branches.items():
+        if not branches:
             continue
-
-        logger.info(f"Begin to write {day.date()} data into in-memory sqlite")
-        for row in pivot_data.PivotTable.Rows.CxPivotRow:
-            value = row["Data"]["anyType"]
-            team_name = value[0]
-            project_name = value[1]
-            query_name = value[2]
+        project_name = project_id_names.get(project_id)
+        for branch in branches:
+            logger.info(f"HTTP call to get data "
+                        f"for project id: {project_id}, "
+                        f"project name: {project_name}, "
+                        f"branch: {branch} ")
+            last_scan_map = get_last_scan_info(project_ids=[project_id], branch=branch)
+            last_scan = last_scan_map.get(project_id)
+            if not last_scan:
+                continue
+            scan_update_date_time = datetime.datetime.strptime(last_scan.updatedAt, time_stamp_format)
+            if start_date_time > scan_update_date_time or end_date_time < scan_update_date_time:
+                continue
+            scan_id = last_scan.id
+            scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
+            queries_counters = scan_summary.get("scansSummaries")[0].sastCounters.get("queriesCounters")
+            if not queries_counters:
+                continue
+            result = queries_counters[0]
+            logger.info(f"Successfully get data"
+                        f"for project id: {project_id}, "
+                        f"project name: {project_name}, "
+                        f"branch: {branch} "
+                        )
+            logger.info(f"Begin to write data into in-memory sqlite"
+                        f"for project id: {project_id}, "
+                        f"project name: {project_name}, "
+                        f"branch: {branch} "
+                        )
+            query_name = result.get("queryName")
             if query_name == "No Results":
                 continue
             if queries != "ALL" and query_name not in queries:
                 continue
-            result_severity = value[3]
-            if severities != "ALL" and result_severity not in result_severity_list:
+            result_severity = result.get("severity").lower()
+            if result_severity not in severities:
                 continue
-            result_quantity = value[6]
+            result_quantity = result.get("counter")
             with db:
                 db.execute(f"INSERT INTO results "
-                           f"(TEAM_NAME, PROJECT_NAME, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
-                           f"VALUES (?,?,?,?,?) ON CONFLICT (TEAM_NAME, PROJECT_NAME, QUERY_NAME) "
+                           f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
+                           f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
                            f"DO UPDATE SET RESULT_QUANTITY = ?",
-                           (team_name, project_name, query_name, result_severity, result_quantity, result_quantity))
-        logger.info(f"finish write {day.date()} data into in-memory sqlite")
+                           (project_id, project_name, branch, query_name, result_severity, result_quantity,
+                            result_quantity))
+            logger.info(f"finish write data "
+                        f"for project id: {project_id}, "
+                        f"project name: {project_name}, "
+                        f"branch: {branch} "
+                        f" into in-memory sqlite")
     logger.info("All data has been written into database")
 
 
-def create_xlsx_file(severity_list, severity_map, report_file_path):
+def create_xlsx_file(severities, report_file_path):
     """
     create xlsx file based on the data, and following the same layout as the data analysis template.
     :return:
@@ -181,77 +210,87 @@ def create_xlsx_file(severity_list, severity_map, report_file_path):
                                         'border_color': '#A0A0A0'})
     worksheet.merge_range('A1:A2', '')
     worksheet.freeze_panes(0, 1)  # Freeze the first column.
-    # query_dict record the query: column information
-    query_dict = {}
-    # project_dict record the team_project: row information
-    team_project_dict = {}
+    # query_column_dict record the query: column information
+    query_column_dict = {}
+    # project_id_row_dict record the project_id: row information
+    project_id_row_dict = {}
     severity_written_list = []
+    content_start_index = 2
 
     def get_largest_value_of_a_dict(x):
+        """
+            a dict is key value pairs, this function will get the largest value from the dict values.
+        """
         values = list(x.values())
         if len(values) == 0:
-            return 1
+            return content_start_index
         return sorted(values)[-1]
 
-    def write_data_by_severity(se):
-        severity_value = severity_map.get(se)
-        sql_count = f"SELECT COUNT(DISTINCT QUERY_NAME) FROM results WHERE RESULT_SEVERITY = {severity_value}"
-        sql_query = f"SELECT DISTINCT QUERY_NAME FROM results WHERE RESULT_SEVERITY = {severity_value} " \
-                    f"ORDER BY QUERY_NAME ASC"
-        sql_data = f"SELECT TEAM_NAME, PROJECT_NAME, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY FROM results " \
-                   f"WHERE RESULT_SEVERITY = {severity_value} " \
-                   f"ORDER BY TEAM_NAME ASC, PROJECT_NAME ASC, RESULT_SEVERITY DESC, QUERY_NAME ASC "
-        column_index = get_largest_value_of_a_dict(query_dict)
-        row_index = get_largest_value_of_a_dict(team_project_dict)
+    def write_data_by_severity(severity_value):
+        sql_count = f"SELECT COUNT(DISTINCT QUERY_NAME) FROM results WHERE RESULT_SEVERITY = '{severity_value}'"
+        sql_query = (f"SELECT DISTINCT QUERY_NAME FROM results WHERE RESULT_SEVERITY = '{severity_value}' "
+                     f"ORDER BY QUERY_NAME ASC")
+        sql_data = (f"SELECT PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY "
+                    f"FROM results "
+                    f"WHERE RESULT_SEVERITY = '{severity_value}' "
+                    f"ORDER BY PROJECT_ID ASC, RESULT_SEVERITY DESC, QUERY_NAME ASC ")
+        column_index = get_largest_value_of_a_dict(query_column_dict)
         with db:
             number_of_query = db.execute(sql_count).fetchone()[0]
-            if number_of_query > 0:
-                # write title
-                column_index_start = column_index + 1
-                if column_index == 1:
-                    column_index_start = 1
-                column_index = column_index_start
-                column_index_end = column_index_start + number_of_query - 1
-                total_column_index = column_index_end + 1
-                worksheet.merge_range(0, column_index_start, 0, column_index_end, se, title_format)
-                worksheet.merge_range(0, total_column_index, 1, total_column_index, se + ' total', title_format)
-                query_dict.update({se + ' Total': total_column_index})
-                for row in db.execute(sql_query):
-                    worksheet.write(1, column_index, row[0], title_format)
-                    query_dict.update({row[0]: column_index})
-                    column_index += 1
-                # write data
-                for row in db.execute(sql_data):
-                    team_name = row[0]
-                    project_name = row[1]
-                    query_name = row[2]
-                    result_quantity = int(row[4])
-                    current_team_project = team_name + "_" + project_name
-                    row_number = team_project_dict.get(current_team_project)
-
-                    if row_number is None:
+            if number_of_query == 0:
+                logger.info(f"no queries found from in-memory database for severity {severity_value}")
+                return
+            # write title
+            column_index_start = column_index + 1
+            if column_index == content_start_index:
+                column_index_start = content_start_index
+            column_index = column_index_start
+            column_index_end = column_index_start + number_of_query - 1
+            total_column_index = column_index_end + 1
+            if not severity_written_list:
+                worksheet.merge_range(0, 1, 1, 1, "Branch", title_format)
+            worksheet.merge_range(0, column_index_start, 0, column_index_end, severity_value, title_format)
+            worksheet.merge_range(0, total_column_index, 1, total_column_index, severity_value + ' total', title_format)
+            query_column_dict.update({severity_value + " Total": total_column_index})
+            for row in db.execute(sql_query):
+                query_name = row[0]
+                worksheet.write(1, column_index, query_name, title_format)
+                query_column_dict.update({query_name: column_index})
+                column_index += 1
+            # write data
+            for row in db.execute(sql_data):
+                project_id = row[0]
+                project_name = row[1]
+                branch = row[2]
+                query_name = row[3]
+                result_quantity = int(row[5])
+                row_number = project_id_row_dict.get(project_id)
+                row_index = get_largest_value_of_a_dict(project_id_row_dict)
+                if row_number is None:
+                    if not project_id_row_dict:
+                        row_number = content_start_index
+                    else:
                         row_index += 1
                         row_number = row_index
-                        team_project_dict.update({current_team_project: row_number})
-                        worksheet.write(row_index, 0, project_name, title_format)
-                    row_number = team_project_dict.get(current_team_project)
-                    if se + " Total" not in list(team_project_dict.keys()):
-                        row_for_total = row_number + 1
-                        column_start_letter = xl_col_to_name(column_index_start)
-                        column_end_letter = xl_col_to_name(column_index_end)
-                        func = f"=SUM({column_start_letter}{row_for_total}:" \
-                               f"{column_end_letter}{row_for_total})"
-                        logger.debug(f"{se} Total: row number {row_number} , column number: {total_column_index}, "
-                                     f"func: {func}")
-                        worksheet.write_formula(row_number, total_column_index, func)
-                    worksheet.write_number(
-                        row_number, query_dict.get(query_name), result_quantity
-                    )
-        severity_written_list.append(se)
+                    project_id_row_dict.update({project_id: row_number})
+                    worksheet.write(row_index, 0, project_name, title_format)
+                    worksheet.write(row_index, 1, branch, title_format)
+                column_start_letter = xl_col_to_name(column_index_start)
+                column_end_letter = xl_col_to_name(column_index_end)
+                func = f"=SUM({column_start_letter}{row_number}:" \
+                       f"{column_end_letter}{row_number})"
+                logger.debug(f"{severity_value} Total: row number {row_number} , "
+                             f"column number: {total_column_index}, "
+                             f"func: {func}")
+                worksheet.write_formula(row_number, total_column_index, func)
+                worksheet.write_number(
+                    row_number, query_column_dict.get(query_name), result_quantity
+                )
+        severity_written_list.append(severity_value)
 
-    for severity in severity_list:
+    for severity in severities:
         logger.info(f"write severity {severity} data")
-        write_data_by_severity(se=severity)
+        write_data_by_severity(severity_value=severity)
     worksheet.autofit()
     workbook.close()
     logger.info("finish creating Pivot.xlsx file")
@@ -260,26 +299,12 @@ def create_xlsx_file(severity_list, severity_map, report_file_path):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     cli_args = get_command_line_arguments()
-    renamed_high_to_critical = cli_args.get("renamed_high_to_critical")
-    severity_dict = {
-        "high": "3",
-        "medium": "2",
-        "low": "1",
-        "info": "0",
-    }
-    if renamed_high_to_critical:
-        severity_dict = {
-            "critical": "3",
-            "high": "2",
-            "medium": "1",
-            "low": "0",
-        }
-    get_data_by_api_and_write_to_db(cli_args, severity_dict)
-    severity_list = cli_args.get("severities")
-    if severity_list == "ALL":
-        severity_list = severity_dict.keys()
+    severity_list = ["high", "medium", "low"]
+    severity_list_from_arg = cli_args.get("severities")
+    if severity_list_from_arg != "ALL":
+        severity_list = severity_list_from_arg
+    get_data_by_api_and_write_to_db(cli_args, severity_list)
     create_xlsx_file(
-        severity_list=severity_list,
-        severity_map=severity_dict,
+        severities=severity_list,
         report_file_path=cli_args.get("report_file_path")
     )
