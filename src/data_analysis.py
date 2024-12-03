@@ -23,10 +23,10 @@ ch.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-# db = sqlite3.connect(":memory:")
-db = sqlite3.connect("test.db")
+db = sqlite3.connect(":memory:")
 db.execute("""CREATE TABLE IF NOT EXISTS results (PROJECT_ID VARCHAR, PROJECT_NAME VARCHAR, BRANCH VARCHAR,
 QUERY_NAME VARCHAR, RESULT_SEVERITY VARCHAR, RESULT_QUANTITY INTEGER, PRIMARY KEY (PROJECT_ID, BRANCH, QUERY_NAME) )""")
+severity_list = ["critical", "high", "medium", "low"]
 
 
 def get_command_line_arguments():
@@ -44,14 +44,13 @@ def get_command_line_arguments():
     parser.add_argument('--cxone_grant_type', required=True, help="CxOne grant type, refresh_token")
     parser.add_argument('--cxone_refresh_token', required=True, help="CxOne API Key")
     parser.add_argument('--cxone_proxy', help="proxy URL")
-
     parser.add_argument('--include_not_exploitable', default="False", required=True, help="true or false")
     parser.add_argument('--range_type', default="CUSTOM", required=True,
                         help="ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
     parser.add_argument('--date_from', help="example: 2023-06-01-0-0-0")
     parser.add_argument('--date_to', help="example: 2023-06-30-0-0-0")
     parser.add_argument('--queries', default="ALL", help="example: Code_Injection,Stored_XSS")
-    parser.add_argument('--severities', default="ALL", help="example: High,Medium,Low,Info")
+    parser.add_argument('--severities', default="ALL", help="example: Critical,High,Medium,Low,Info")
     parser.add_argument('--report_file_path', help="report file path")
     arguments = parser.parse_known_args()
     arguments = arguments[0]
@@ -60,12 +59,10 @@ def get_command_line_arguments():
         raise ValueError(f"command line argument: range_type should be any one of the following:\n"
                          f"ALL, PAST_DAY, PAST_WEEK, PAST_MONTH, PAST_3_MONTH, PAST_YEAR, CUSTOM")
 
-    severity_list = ["high", "medium", "low"]
-
     if arguments.severities != "ALL" and \
-            not set([item.lower() for item in arguments.severities.split(",")]).issubset(set(severity_list)):
+            not set([item.strip().lower() for item in arguments.severities.split(",")]).issubset(set(severity_list)):
         raise ValueError(f"command line argument: severity should be any combinations of the following:\n"
-                         f"High, Medium, Low")
+                         f"Critical, High, Medium, Low")
 
     args = {
         "cxone_access_control_url": arguments.cxone_access_control_url,
@@ -74,7 +71,6 @@ def get_command_line_arguments():
         "cxone_grant_type": arguments.cxone_grant_type,
         "cxone_refresh_token": arguments.cxone_refresh_token,
         "cxone_proxy": arguments.cxone_proxy,
-
         "include_not_exploitable": False if arguments.include_not_exploitable.lower() == "false" else True,
         "range_type": arguments.range_type,
         "date_from": arguments.date_from,
@@ -146,7 +142,10 @@ def get_data_by_api_and_write_to_db(args, severities):
                 continue
             scan_id = last_scan.id
             scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
-            queries_counters = scan_summary.get("scansSummaries")[0].sastCounters.get("queriesCounters")
+            scan_summaries = scan_summary.get("scansSummaries")
+            if not scan_summaries:
+                continue
+            queries_counters = scan_summaries[0].sastCounters.get("queriesCounters")
             if not queries_counters:
                 continue
             result = queries_counters[0]
@@ -299,7 +298,6 @@ def create_xlsx_file(severities, report_file_path):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     cli_args = get_command_line_arguments()
-    severity_list = ["high", "medium", "low"]
     severity_list_from_arg = cli_args.get("severities")
     if severity_list_from_arg != "ALL":
         severity_list = severity_list_from_arg
