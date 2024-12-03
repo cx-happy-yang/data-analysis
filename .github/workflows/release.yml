@@ -29,7 +29,7 @@ jobs:
         pip install pyinstaller-versionfile
     - name: Build binary
       run: |
-        pyinstaller --clean --noconfirm --onefile --nowindow --distpath=dist/ --workpath=/tmp --hidden-import gql src/data_analysis.py
+        pyinstaller --clean --noconfirm --onefile --nowindow --distpath=dist/ --workpath=/tmp --hidden-import=gql src/data_analysis.py
     - name: Release
       env:
         GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
