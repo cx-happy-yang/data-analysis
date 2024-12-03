@@ -3,3 +3,5 @@ src/dist
 src/build
 *.spec
 src/*.spec
+.idea
+*.xlsx
