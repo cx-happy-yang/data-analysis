@@ -117,15 +117,29 @@ def get_data_by_api_and_write_to_db(args, severities):
     start_date_time = datetime.datetime.strptime(calculated_date_range[-1].strftime("%Y-%m-%d-0-0-0"), date_format)
     end_date_time = datetime.datetime.strptime(calculated_date_range[0].strftime("%Y-%m-%d-23-59-59"), date_format)
 
-    project_collection = get_a_list_of_projects()
+    offset = 0
+    limit = 100
+    page = 1
+    project_collection = get_a_list_of_projects(offset=offset, limit=limit)
+    total_count = int(project_collection.totalCount)
+    projects = project_collection.projects
+    if total_count > limit:
+        while True:
+            offset = page * limit
+            if offset >= total_count:
+                break
+            project_collection = get_a_list_of_projects(offset=offset, limit=limit)
+            page += 1
+            projects.extend(project_collection.projects)
     project_id_names = {}
-    for project in project_collection.projects:
+    for project in projects:
         project_id_names.update({project.id: project.name})
     project_branches = {}
     for project_id in project_id_names.keys():
-        project_branches.update({project_id: get_branches(limit=1024, project_id=project_id)})
+        project_branches.update({project_id: get_branches(limit=2048, project_id=project_id)})
     for project_id, branches in project_branches.items():
         if not branches:
+            logger.info(f"{project_id} has no branches!")
             continue
         project_name = project_id_names.get(project_id)
         for branch in branches:
@@ -133,12 +147,14 @@ def get_data_by_api_and_write_to_db(args, severities):
                         f"for project id: {project_id}, "
                         f"project name: {project_name}, "
                         f"branch: {branch} ")
+
             last_scan_map = get_last_scan_info(project_ids=[project_id], branch=branch)
             last_scan = last_scan_map.get(project_id)
             if not last_scan:
                 continue
             scan_update_date_time = datetime.datetime.strptime(last_scan.updatedAt, time_stamp_format)
             if start_date_time > scan_update_date_time or end_date_time < scan_update_date_time:
+                logger.info("the last scan from this project is not within the date range you specified! Will ignore!")
                 continue
             scan_id = last_scan.id
             scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
@@ -148,33 +164,28 @@ def get_data_by_api_and_write_to_db(args, severities):
             queries_counters = scan_summaries[0].sastCounters.get("queriesCounters")
             if not queries_counters:
                 continue
-            result = queries_counters[0]
-            logger.info(f"Successfully get data"
-                        f"for project id: {project_id}, "
-                        f"project name: {project_name}, "
-                        f"branch: {branch} "
-                        )
             logger.info(f"Begin to write data into in-memory sqlite"
                         f"for project id: {project_id}, "
                         f"project name: {project_name}, "
                         f"branch: {branch} "
                         )
-            query_name = result.get("queryName")
-            if query_name == "No Results":
-                continue
-            if queries != "ALL" and query_name not in queries:
-                continue
-            result_severity = result.get("severity").lower()
-            if result_severity not in severities:
-                continue
-            result_quantity = result.get("counter")
-            with db:
-                db.execute(f"INSERT INTO results "
-                           f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
-                           f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
-                           f"DO UPDATE SET RESULT_QUANTITY = ?",
-                           (project_id, project_name, branch, query_name, result_severity, result_quantity,
-                            result_quantity))
+            for result in queries_counters:
+                query_name = result.get("queryName")
+                if query_name == "No Results":
+                    continue
+                if queries != "ALL" and query_name not in queries:
+                    continue
+                result_severity = result.get("severity").lower()
+                if result_severity not in severities:
+                    continue
+                result_quantity = result.get("counter")
+                with db:
+                    db.execute(f"INSERT INTO results "
+                               f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
+                               f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
+                               f"DO UPDATE SET RESULT_QUANTITY = ?",
+                               (project_id, project_name, branch, query_name, result_severity, result_quantity,
+                                result_quantity))
             logger.info(f"finish write data "
                         f"for project id: {project_id}, "
                         f"project name: {project_name}, "
@@ -208,7 +219,7 @@ def create_xlsx_file(severities, report_file_path):
                                         'bg_color': '#F0F0F0',
                                         'border_color': '#A0A0A0'})
     worksheet.merge_range('A1:A2', '')
-    worksheet.freeze_panes(0, 1)  # Freeze the first column.
+    worksheet.freeze_panes(0, 2)  # Freeze the first column.
     # query_column_dict record the query: column information
     query_column_dict = {}
     # project_id_row_dict record the project_id: row information
@@ -276,8 +287,8 @@ def create_xlsx_file(severities, report_file_path):
                     worksheet.write(row_index, 1, branch, title_format)
                 column_start_letter = xl_col_to_name(column_index_start)
                 column_end_letter = xl_col_to_name(column_index_end)
-                func = f"=SUM({column_start_letter}{row_number}:" \
-                       f"{column_end_letter}{row_number})"
+                func = f"=SUM({column_start_letter}{row_number + 1}:" \
+                       f"{column_end_letter}{row_number + 1})"
                 logger.debug(f"{severity_value} Total: row number {row_number} , "
                              f"column number: {total_column_index}, "
                              f"func: {func}")
