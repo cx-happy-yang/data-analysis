@@ -1,2 +1,2 @@
-CheckmarxPythonSDK==1.0.8
+CheckmarxPythonSDK==1.0.9
 XlsxWriter==3.1.2
