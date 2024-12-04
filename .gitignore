@@ -5,3 +5,4 @@ src/build
 src/*.spec
 .idea
 *.xlsx
+data_analysis
