@@ -1,7 +1,7 @@
 # Data Analysis
 
 ## How to run
-1. download the binary from (Releases)[https://github.com/HappyY19/data-analysis/releases].
+1. download the binary from [Releases](https://github.com/HappyY19/data-analysis/releases).
 2. chmod +x ./data_analysis
 3. run the cli: 
 ```commandline
