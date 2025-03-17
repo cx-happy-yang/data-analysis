@@ -6,3 +6,5 @@ src/*.spec
 .idea
 *.xlsx
 data_analysis
+*.pyc
+**/__pycache__/
