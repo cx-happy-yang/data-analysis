@@ -19,49 +19,47 @@ def get_cx_one_data_and_write_to_db(args, severities, db_connection):
         project_id = project.get("project_id")
         branches = project.get("branches")
         project_name = project.get("project_name")
-        for branch in branches:
-            logger.info(f"HTTP call to get data "
-                        f"for project id: {project_id}, "
-                        f"project name: {project_name}, "
-                        f"branch: {branch} ")
+        logger.info(f"HTTP call to get data "
+                    f"for project id: {project_id}, "
+                    f"project name: {project_name}, ")
 
-            queries_counters = get_query_counters(
-                project_id=project_id,
-                branch=branch,
-                start_date_time=start_date_time,
-                end_date_time=end_date_time,
-                time_stamp_format=time_stamp_format
-            )
-            logger.info(f"Begin to write data into in-memory sqlite"
-                        f"for project id: {project_id}, "
-                        f"project name: {project_name}, "
-                        f"branch: {branch} "
-                        )
-            for result in queries_counters:
-                query_name = result.get("queryName")
-                if query_name == "No Results":
-                    continue
-                if queries != "ALL" and query_name not in queries:
-                    continue
-                result_severity = result.get("severity").lower()
-                if result_severity not in severities:
-                    continue
-                result_quantity = result.get("counter")
-                with db_connection:
-                    db_connection.execute(
-                        f"INSERT INTO results "
-                        f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
-                        f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
-                        f"DO UPDATE SET RESULT_QUANTITY = ?",
-                        (project_id, project_name, branch, query_name, result_severity,
-                         result_quantity,
-                         result_quantity)
+        queries_counters, branch = get_query_counters(
+            project_id=project_id,
+            branches=branches,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            time_stamp_format=time_stamp_format
+        )
+        logger.info(f"branch: {branch}")
+        logger.info(f"Begin to write data into in-memory sqlite"
+                    f"for project id: {project_id}, "
+                    f"project name: {project_name}, "
                     )
-            logger.info(f"finish write data "
-                        f"for project id: {project_id}, "
-                        f"project name: {project_name}, "
-                        f"branch: {branch} "
-                        f" into in-memory sqlite")
+        for result in queries_counters:
+            query_name = result.get("queryName")
+            if query_name == "No Results":
+                continue
+            if queries != "ALL" and query_name not in queries:
+                continue
+            result_severity = result.get("severity").lower()
+            if result_severity not in severities:
+                continue
+            result_quantity = result.get("counter")
+            with db_connection:
+                db_connection.execute(
+                    f"INSERT INTO results "
+                    f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
+                    f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
+                    f"DO UPDATE SET RESULT_QUANTITY = ?",
+                    (project_id, project_name, branch, query_name, result_severity,
+                     result_quantity,
+                     result_quantity)
+                )
+        logger.info(f"finish write data "
+                    f"for project id: {project_id}, "
+                    f"project name: {project_name}, "
+                    f"branch: {branch} "
+                    f" into in-memory sqlite")
     logger.info("All data has been written into database")
 
 
