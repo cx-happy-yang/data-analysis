@@ -47,6 +47,7 @@ jobs:
       - name: Build binary
         run: |
           pyinstaller --clean --noconfirm --onefile --nowindow --distpath dist/ --workpath /tmp src/data_analysis.py
+          git config --global --add safe.directory /__w/data-analysis/data-analysis
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
