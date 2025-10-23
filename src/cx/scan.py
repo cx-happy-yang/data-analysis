@@ -84,7 +84,9 @@ def get_query_counters(
         if start_date_time <= scan_update_date_time <= end_date_time:
             scan_id = last_scan.id
             statistics_from_sast_results = get_part_sast_results_by_scan_id(scan_id=scan_id)
-            if not statistics_from_sast_results:
+            if statistics_from_sast_results:
+                result = statistics_from_sast_results
+            else:
                 scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
                 scan_summaries = scan_summary.get("scansSummaries")
                 if scan_summaries:
