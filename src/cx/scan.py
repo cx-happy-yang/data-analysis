@@ -21,7 +21,7 @@ def get_last_scan_from_branches(project_id: str, branches: List[str], time_stamp
         return {}
     sorted_last_scans = sorted(
         last_scans,
-        key=lambda r: datetime.datetime.strptime(list(r.values())[0].createdAt, time_stamp_format),
+        key=lambda r: datetime.datetime.strptime(list(r.values())[0].created_at, time_stamp_format),
     )
     most_last_scan = sorted_last_scans[-1]
     return most_last_scan
@@ -80,7 +80,7 @@ def get_query_counters(
     )
     last_scan = last_scan_map.get(project_id)
     if last_scan:
-        scan_update_date_time = datetime.datetime.strptime(last_scan.updatedAt, time_stamp_format)
+        scan_update_date_time = datetime.datetime.strptime(last_scan.updated_at, time_stamp_format)
         if start_date_time <= scan_update_date_time <= end_date_time:
             scan_id = last_scan.id
             statistics_from_sast_results = get_part_sast_results_by_scan_id(scan_id=scan_id)
@@ -90,7 +90,7 @@ def get_query_counters(
                 scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
                 scan_summaries = scan_summary.get("scansSummaries")
                 if scan_summaries:
-                    queries_counters = scan_summaries[0].sastCounters.get("queriesCounters")
+                    queries_counters = scan_summaries[0].sast_counters.get("queriesCounters")
                     if queries_counters:
                         result = queries_counters
     return result, last_scan.branch
