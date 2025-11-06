@@ -24,7 +24,7 @@ def get_projects() -> List[dict]:
     limit = 100
     page = 1
     project_collection = get_a_list_of_projects(offset=offset, limit=limit)
-    total_count = int(project_collection.totalCount)
+    total_count = int(project_collection.total_count)
     projects.extend(extract_project_info_from_api_response(project_collection))
     if total_count > limit:
         while True:
