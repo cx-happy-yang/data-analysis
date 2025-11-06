@@ -9,5 +9,5 @@ source ~/.secrets
 --cxone_refresh_token $CXONE_HAPPY_TOKEN \
 --include_not_exploitable false \
 --range_type CUSTOM \
---date_from 2023-06-01-0-0-0 \
---date_to 2024-12-31-0-0-0
+--date_from 2024-06-01-0-0-0 \
+--date_to 2025-12-31-0-0-0
