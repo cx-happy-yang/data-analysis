@@ -34,19 +34,24 @@ jobs:
         run: ldd --version
       - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.8'
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-          pip install --upgrade pyinstaller
-          pip install pyinstaller-versionfile
+         # Create and activate virtual environment
+          python -m venv myenv
+          source myenv/bin/activate
+          python -m pip install --upgrade pip --no-cache-dir
+          pip install -r requirements.txt --no-cache-dir
+          pip install pyinstaller --no-cache-dir
+          pip install --upgrade pyinstaller --no-cache-dir
+          pip install pyinstaller-versionfile --no-cache-dir
+          pip list
+          which pyinstaller
       - name: Build binary
         run: |
-          pyinstaller --clean --noconfirm --onefile --nowindow --distpath dist/ --workpath /tmp src/data_analysis.py
+          CERT_PATH=$(/__w/data-analysis/data-analysis/myenv/bin/python -c "import certifi; print(certifi.where())") && /__w/data-analysis/data-analysisy/myenv/bin/pyinstaller --clean --noconfirm --onefile --nowindow --distpath dist/ --workpath /tmp --add-data "$CERT_PATH:certifi"  src/data_analysis.py
           git config --global --add safe.directory /__w/data-analysis/data-analysis
       - name: Release
         env:
