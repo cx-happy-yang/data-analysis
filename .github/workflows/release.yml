@@ -49,6 +49,7 @@ jobs:
           pip install pyinstaller-versionfile --no-cache-dir
           pip list
           which pyinstaller
+        shell: bash
       - name: Build binary
         run: |
           CERT_PATH=$(/__w/data-analysis/data-analysis/myenv/bin/python -c "import certifi; print(certifi.where())") && /__w/data-analysis/data-analysisy/myenv/bin/pyinstaller --clean --noconfirm --onefile --nowindow --distpath dist/ --workpath /tmp --add-data "$CERT_PATH:certifi"  src/data_analysis.py
