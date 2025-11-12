@@ -48,11 +48,11 @@ def calculate_statistics_of_sast_results(sast_results: List[SastResult]) -> List
 
 def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
     offset = 0
-    limit = 100
+    limit = 250
     page = 1
     sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit)
     total_count = int(sast_results_collection.get("totalCount"))
-    if total_count > 500:
+    if total_count > 1000:
         return []
     sast_results = sast_results_collection.get("results")
     if total_count > limit:
