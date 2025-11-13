@@ -1,7 +1,31 @@
 import datetime
+from typing import List, Tuple
 from src.log import logger
-from .project import get_projects
 from .scan import get_query_counters
+
+
+def get_latest_per_project(items: List[Tuple[str, str, str, str]]) -> List[Tuple[str, str, str, str]]:
+    """
+    获取每个project_id对应的created_at最大的元组
+
+    参数:
+        items: 元组列表，每个元组格式为 (scan_id, project_id, branch, created_at)
+               其中created_at为RFC 3339格式时间字符串（如"2025-11-13T04:58:32.167Z"）
+
+    返回:
+        每个project_id对应的最新元组列表（按project_id首次出现顺序排列）
+    """
+    # 用字典存储每个project_id的最新元组，键为project_id，值为对应元组
+    latest_map = {}
+
+    for item in items:
+        _, project_id, _, created_at = item  # 提取需要比较的字段
+        # 如果该project_id未记录，或当前item的created_at更新，则替换
+        if project_id not in latest_map or created_at > latest_map[project_id][3]:
+            latest_map[project_id] = item
+
+    # 转换为列表返回（保留字典插入顺序，Python 3.7+字典有序）
+    return list(latest_map.values())
 
 
 def get_date_list(number_of_days, base=None):
@@ -10,31 +34,26 @@ def get_date_list(number_of_days, base=None):
     return [(base - datetime.timedelta(days=x)) for x in range(number_of_days)]
 
 
-def get_cx_one_data_and_write_to_db(args, severities, db_connection):
-    queries = args.get("queries")
-    time_stamp_format = "%Y-%m-%dT%H:%M:%S.%fZ"
-    end_date_time, start_date_time = get_date_range(args)
-    projects = get_projects()
-    for project in projects:
-        project_id = project.get("project_id")
-        branches = project.get("branches")
-        project_name = project.get("project_name")
-        logger.info(f"HTTP call to get data "
-                    f"for project id: {project_id}, "
-                    f"project name: {project_name}, ")
-
-        queries_counters, branch = get_query_counters(
-            project_id=project_id,
-            branches=branches,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            time_stamp_format=time_stamp_format
+def get_cx_one_data_and_write_to_db(
+        queries: List[str],
+        severities: List[str],
+        projects_scanned: List[tuple],
+        db_connection,
+        project_id_with_names: dict
+):
+    for project in projects_scanned:
+        scan_id = project[0]
+        project_id = project[1]
+        branch = project[2]
+        project_name = project_id_with_names[project_id]
+        logger.info(
+            f"HTTP call to get data for project id: {project_id} "
         )
+        queries_counters = get_query_counters(scan_id=scan_id)
         logger.info(f"branch: {branch}")
-        logger.info(f"Begin to write data into in-memory sqlite"
-                    f"for project id: {project_id}, "
-                    f"project name: {project_name}, "
-                    )
+        logger.info(
+            f"Begin to write data into in-memory sqlite for project id: {project_id}, "
+        )
         for result in queries_counters:
             query_name = result.get("queryName")
             if query_name == "No Results":
@@ -85,6 +104,6 @@ def get_date_range(args: dict) -> tuple:
         date_to = datetime.datetime.strptime(args.get("date_to"), date_format)
         day_delta = (date_to - date_from).days
         calculated_date_range = get_date_list(day_delta, date_to)
-    start_date_time = datetime.datetime.strptime(calculated_date_range[-1].strftime("%Y-%m-%d-0-0-0"), date_format)
-    end_date_time = datetime.datetime.strptime(calculated_date_range[0].strftime("%Y-%m-%d-23-59-59"), date_format)
+    start_date_time = calculated_date_range[-1]
+    end_date_time = calculated_date_range[0]
     return end_date_time, start_date_time

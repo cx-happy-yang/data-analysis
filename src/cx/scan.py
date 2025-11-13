@@ -4,10 +4,36 @@ from CheckmarxPythonSDK.CxOne import (
     get_last_scan_info,
     get_summary_for_many_scans,
     get_sast_results_by_scan_id,
+    get_a_list_of_scans,
 )
 from CheckmarxPythonSDK.CxOne.dto import (
-    SastResult
+    Scan,
+    SastResult,
 )
+
+
+def get_all_scans_within_date_range(
+        time_stamp_format: str,
+        from_date: datetime.datetime,
+        to_date: datetime.datetime
+) -> List[Scan]:
+    from_date = from_date.strftime(time_stamp_format)
+    to_date = to_date.strftime(time_stamp_format)
+    offset = 0
+    limit = 250
+    page = 1
+    scans_collection = get_a_list_of_scans(offset=offset, limit=limit, from_date=from_date, to_date=to_date)
+    total_count = scans_collection.total_count
+    scans = scans_collection.scans
+    if total_count > limit:
+        while True:
+            offset = page * limit
+            if offset >= total_count:
+                break
+            scans_collection = get_a_list_of_scans(offset=offset, limit=limit, from_date=from_date, to_date=to_date)
+            page += 1
+            scans.extend(scans_collection.scans)
+    return scans
 
 
 def get_last_scan_from_branches(project_id: str, branches: List[str], time_stamp_format: str) -> dict:
@@ -68,29 +94,17 @@ def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
 
 
 def get_query_counters(
-        project_id: str,
-        branches: List[str],
-        start_date_time,
-        end_date_time,
-        time_stamp_format
-) -> (List[dict], str):
+       scan_id: str
+) -> List[dict]:
     result = []
-    last_scan_map = get_last_scan_from_branches(
-        project_id=project_id, branches=branches, time_stamp_format=time_stamp_format
-    )
-    last_scan = last_scan_map.get(project_id)
-    if last_scan:
-        scan_update_date_time = datetime.datetime.strptime(last_scan.updated_at, time_stamp_format)
-        if start_date_time <= scan_update_date_time <= end_date_time:
-            scan_id = last_scan.id
-            statistics_from_sast_results = get_part_sast_results_by_scan_id(scan_id=scan_id)
-            if statistics_from_sast_results:
-                result = statistics_from_sast_results
-            else:
-                scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
-                scan_summaries = scan_summary.get("scansSummaries")
-                if scan_summaries:
-                    queries_counters = scan_summaries[0].sast_counters.get("queriesCounters")
-                    if queries_counters:
-                        result = queries_counters
-    return result, last_scan.branch
+    statistics_from_sast_results = get_part_sast_results_by_scan_id(scan_id=scan_id)
+    if statistics_from_sast_results:
+        result = statistics_from_sast_results
+    else:
+        scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
+        scan_summaries = scan_summary.get("scansSummaries")
+        if scan_summaries:
+            queries_counters = scan_summaries[0].sast_counters.get("queriesCounters")
+            if queries_counters:
+                result = queries_counters
+    return result
