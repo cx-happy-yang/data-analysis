@@ -10,7 +10,7 @@ def extract_project_info_from_api_response(project_collection):
 
 
 def get_project_id_with_names(project_ids: List[str]) -> dict:
-    logger.info("start to get all projects")
+    logger.info("start to get all projects within the date range")
     results = {}
     offset = 0
     limit = 100
@@ -26,5 +26,6 @@ def get_project_id_with_names(project_ids: List[str]) -> dict:
             project_collection = get_a_list_of_projects(offset=offset, limit=limit, ids=project_ids)
             page += 1
             results.update(extract_project_info_from_api_response(project_collection))
-    logger.info("finish get all projects")
+    logger.info(f"number of projects during the date range {len(results.keys())}")
+    logger.info("finish get all projects within the date range")
     return results

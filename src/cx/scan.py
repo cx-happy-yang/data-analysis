@@ -22,15 +22,19 @@ def get_all_scans_within_date_range(
     offset = 0
     limit = 250
     page = 1
-    scans_collection = get_a_list_of_scans(offset=offset, limit=limit, from_date=from_date, to_date=to_date)
-    total_count = scans_collection.total_count
+    scans_collection = get_a_list_of_scans(
+        offset=offset, limit=limit, from_date=from_date, to_date=to_date, sort=["-created_at"]
+    )
+    total_count = scans_collection.filtered_total_count
     scans = scans_collection.scans
     if total_count > limit:
         while True:
             offset = page * limit
             if offset >= total_count:
                 break
-            scans_collection = get_a_list_of_scans(offset=offset, limit=limit, from_date=from_date, to_date=to_date)
+            scans_collection = get_a_list_of_scans(
+                offset=offset, limit=limit, from_date=from_date, to_date=to_date, sort=["-created_at"]
+            )
             page += 1
             scans.extend(scans_collection.scans)
     return scans

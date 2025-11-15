@@ -89,21 +89,33 @@ def get_date_range(args: dict) -> tuple:
     calculated_date_range = []
     if range_type == "ALL":
         calculated_date_range = get_date_list(366)
+        start_date_time = calculated_date_range[-1]
+        end_date_time = calculated_date_range[0]
     elif range_type == "PAST_DAY":
         calculated_date_range = get_date_list(2)
+        start_date_time = calculated_date_range[-1]
+        end_date_time = calculated_date_range[0]
     elif range_type == "PAST_WEEK":
         calculated_date_range = get_date_list(8)
+        start_date_time = calculated_date_range[-1]
+        end_date_time = calculated_date_range[0]
     elif range_type == "PAST_MONTH":
         calculated_date_range = get_date_list(31)
+        start_date_time = calculated_date_range[-1]
+        end_date_time = calculated_date_range[0]
     elif range_type == "PAST_3_MONTH":
         calculated_date_range = get_date_list(91)
+        start_date_time = calculated_date_range[-1]
+        end_date_time = calculated_date_range[0]
     elif range_type == "PAST_YEAR":
         calculated_date_range = get_date_list(366)
+        start_date_time = calculated_date_range[-1]
+        end_date_time = calculated_date_range[0]
     elif range_type == "CUSTOM":
-        date_from = datetime.datetime.strptime(args.get("date_from"), date_format)
-        date_to = datetime.datetime.strptime(args.get("date_to"), date_format)
-        day_delta = (date_to - date_from).days
-        calculated_date_range = get_date_list(day_delta, date_to)
-    start_date_time = calculated_date_range[-1]
-    end_date_time = calculated_date_range[0]
+        start_date_time = datetime.datetime.strptime(args.get("date_from"), date_format)
+        end_date_time = datetime.datetime.strptime(args.get("date_to"), date_format)
+    else:
+        start_date_time = None
+        end_date_time = None
     return end_date_time, start_date_time
+
