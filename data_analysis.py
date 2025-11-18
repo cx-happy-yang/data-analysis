@@ -35,6 +35,7 @@ if __name__ == '__main__':
         [(scan.id, scan.project_id, scan.branch, scan.created_at) for scan in all_scans_within_date_range]
     ))
     all_projects_with_latest_scan = get_latest_per_project(all_projects_scanned_within_date_range)
+    logger.info(f"number of projects within the date range: {len(all_projects_with_latest_scan)}")
     project_id_with_names = get_project_id_with_names([item[1] for item in all_projects_with_latest_scan])
     db_connection = create_db()
     get_cx_one_data_and_write_to_db(
