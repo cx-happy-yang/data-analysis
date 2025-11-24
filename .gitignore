@@ -8,3 +8,4 @@ src/*.spec
 data_analysis
 *.pyc
 **/__pycache__/
+.venv

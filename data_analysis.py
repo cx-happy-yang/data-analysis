@@ -29,7 +29,7 @@ if __name__ == '__main__':
         from_date=start_date_time,
         to_date=end_date_time
     )
-    logger.info(f"number of scans during the date range: {len(all_scans_within_date_range)}")
+    logger.info(f"number of scans within the date range: {len(all_scans_within_date_range)}")
     accepted_branches = ["master", "release", "develop", "rc", "stage"]
     all_projects_scanned_within_date_range = list(set(
         [(scan.id, scan.project_id, scan.branch, scan.created_at) for scan in all_scans_within_date_range]
