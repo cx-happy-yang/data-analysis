@@ -34,52 +34,52 @@ def get_date_list(number_of_days, base=None):
     return [(base - datetime.timedelta(days=x)) for x in range(number_of_days)]
 
 
-def get_cx_one_data_and_write_to_db(
-        queries: List[str],
-        severities: List[str],
-        projects_scanned: List[tuple],
-        db_connection,
-        project_id_with_names: dict
-):
-    for project in projects_scanned:
-        scan_id = project[0]
-        project_id = project[1]
-        branch = project[2]
-        project_name = project_id_with_names[project_id]
-        logger.info(
-            f"HTTP call to get data for project id: {project_id} "
-        )
-        queries_counters = get_query_counters(scan_id=scan_id)
-        logger.info(f"branch: {branch}")
-        logger.info(
-            f"Begin to write data into in-memory sqlite for project id: {project_id}, "
-        )
-        for result in queries_counters:
-            query_name = result.get("queryName")
-            if query_name == "No Results":
-                continue
-            if queries != "ALL" and query_name not in queries:
-                continue
-            result_severity = result.get("severity").lower()
-            if result_severity not in severities:
-                continue
-            result_quantity = result.get("counter")
-            with db_connection:
-                db_connection.execute(
-                    f"INSERT INTO results "
-                    f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
-                    f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
-                    f"DO UPDATE SET RESULT_QUANTITY = ?",
-                    (project_id, project_name, branch, query_name, result_severity,
-                     result_quantity,
-                     result_quantity)
-                )
-        logger.info(f"finish write data "
-                    f"for project id: {project_id}, "
-                    f"project name: {project_name}, "
-                    f"branch: {branch} "
-                    f" into in-memory sqlite")
-    logger.info("All data has been written into database")
+# def get_cx_one_data_and_write_to_db(
+#         queries: List[str],
+#         severities: List[str],
+#         projects_scanned: List[tuple],
+#         db_connection,
+#         project_id_with_names: dict
+# ):
+#     for project in projects_scanned:
+#         scan_id = project[0]
+#         project_id = project[1]
+#         branch = project[2]
+#         project_name = project_id_with_names[project_id]
+#         logger.info(
+#             f"HTTP call to get data for project id: {project_id} "
+#         )
+#         queries_counters = get_query_counters(scan_id=scan_id)
+#         logger.info(f"branch: {branch}")
+#         logger.info(
+#             f"Begin to write data into in-memory sqlite for project id: {project_id}, "
+#         )
+#         for result in queries_counters:
+#             query_name = result.get("queryName")
+#             if query_name == "No Results":
+#                 continue
+#             if queries != "ALL" and query_name not in queries:
+#                 continue
+#             result_severity = result.get("severity").lower()
+#             if result_severity not in severities:
+#                 continue
+#             result_quantity = result.get("counter")
+#             with db_connection:
+#                 db_connection.execute(
+#                     f"INSERT INTO results "
+#                     f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
+#                     f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
+#                     f"DO UPDATE SET RESULT_QUANTITY = ?",
+#                     (project_id, project_name, branch, query_name, result_severity,
+#                      result_quantity,
+#                      result_quantity)
+#                 )
+#         logger.info(f"finish write data "
+#                     f"for project id: {project_id}, "
+#                     f"project name: {project_name}, "
+#                     f"branch: {branch} "
+#                     f" into in-memory sqlite")
+#     logger.info("All data has been written into database")
 
 
 def get_date_range(args: dict) -> tuple:
