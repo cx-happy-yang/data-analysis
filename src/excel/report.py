@@ -35,7 +35,8 @@ def create_xlsx_file(db_connection, severities, report_file_path):
     # project_id_row_dict record the project_id: row information
     project_id_row_dict = {}
     severity_written_list = []
-    content_start_index = 2
+    content_row_start_index = 2
+    content_column_start_index = 3
 
     def get_largest_value_of_a_dict(x):
         """
@@ -43,14 +44,14 @@ def create_xlsx_file(db_connection, severities, report_file_path):
         """
         values = list(x.values())
         if len(values) == 0:
-            return content_start_index
+            return content_column_start_index
         return sorted(values)[-1]
 
     def write_data_by_severity(severity_value):
         sql_count = f"SELECT COUNT(DISTINCT QUERY_NAME) FROM results WHERE RESULT_SEVERITY = '{severity_value}'"
         sql_query = (f"SELECT DISTINCT QUERY_NAME FROM results WHERE RESULT_SEVERITY = '{severity_value}' "
                      f"ORDER BY QUERY_NAME ASC")
-        sql_data = (f"SELECT PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY "
+        sql_data = (f"SELECT SCAN_ID, PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY "
                     f"FROM results "
                     f"WHERE RESULT_SEVERITY = '{severity_value}' "
                     f"ORDER BY PROJECT_ID ASC, RESULT_SEVERITY DESC, QUERY_NAME ASC ")
@@ -62,13 +63,14 @@ def create_xlsx_file(db_connection, severities, report_file_path):
                 return
             # write title
             column_index_start = column_index + 1
-            if column_index == content_start_index:
-                column_index_start = content_start_index
+            if column_index == content_column_start_index:
+                column_index_start = content_column_start_index
             column_index = column_index_start
             column_index_end = column_index_start + number_of_query - 1
             total_column_index = column_index_end + 1
             if not severity_written_list:
                 worksheet.merge_range(0, 1, 1, 1, "Branch", title_format)
+                worksheet.merge_range(0, 2, 1, 2, "URL", title_format)
             if column_index_start != column_index_end:
                 worksheet.merge_range(0, column_index_start, 0, column_index_end, severity_value, title_format)
             else:
@@ -82,22 +84,26 @@ def create_xlsx_file(db_connection, severities, report_file_path):
                 column_index += 1
             # write data
             for row in db_connection.execute(sql_data):
-                project_id = row[0]
-                project_name = row[1]
-                branch = row[2]
-                query_name = row[3]
-                result_quantity = int(row[5])
+                scan_id = row[0]
+                project_id = row[1]
+                project_name = row[2]
+                branch = row[3]
+                query_name = row[4]
+                result_quantity = int(row[6])
+                url = f"https://sng.ast.checkmarx.net/sast-results/{project_id}/{scan_id}"
                 row_number = project_id_row_dict.get(project_id)
                 row_index = get_largest_value_of_a_dict(project_id_row_dict)
                 if row_number is None:
                     if not project_id_row_dict:
-                        row_number = content_start_index
+                        row_number = content_row_start_index
+                        row_index = content_row_start_index
                     else:
                         row_index += 1
                         row_number = row_index
                     project_id_row_dict.update({project_id: row_number})
                     worksheet.write(row_index, 0, project_name, title_format)
                     worksheet.write(row_index, 1, branch, title_format)
+                    worksheet.write(row_index, 2, url, title_format)
                 column_start_letter = xl_col_to_name(column_index_start)
                 column_end_letter = xl_col_to_name(column_index_end)
                 func = f"=SUM({column_start_letter}{row_number + 1}:" \

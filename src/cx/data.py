@@ -4,12 +4,14 @@ from src.log import logger
 from .scan import get_query_counters
 
 
-def get_latest_per_project(items: List[Tuple[str, str, str, str]]) -> List[Tuple[str, str, str, str]]:
+def get_latest_per_project(
+        items: List[Tuple[str, str, str, str, str]]
+    ) -> List[Tuple[str, str, str, str, str]]:
     """
     获取每个project_id对应的created_at最大的元组
 
     参数:
-        items: 元组列表，每个元组格式为 (scan_id, project_id, branch, created_at)
+        items: 元组列表，每个元组格式为 (scan_id, project_id, project_name, branch, created_at)
                其中created_at为RFC 3339格式时间字符串（如"2025-11-13T04:58:32.167Z"）
 
     返回:
@@ -19,9 +21,9 @@ def get_latest_per_project(items: List[Tuple[str, str, str, str]]) -> List[Tuple
     latest_map = {}
 
     for item in items:
-        _, project_id, _, created_at = item  # 提取需要比较的字段
+        _, project_id, _, _, created_at = item  # 提取需要比较的字段
         # 如果该project_id未记录，或当前item的created_at更新，则替换
-        if project_id not in latest_map or created_at > latest_map[project_id][3]:
+        if project_id not in latest_map or created_at > latest_map[project_id][4]:
             latest_map[project_id] = item
 
     # 转换为列表返回（保留字典插入顺序，Python 3.7+字典有序）

@@ -20,7 +20,7 @@ def get_all_scans_within_date_range(
     from_date = from_date.strftime(time_stamp_format)
     to_date = to_date.strftime(time_stamp_format)
     offset = 0
-    limit = 250
+    limit = 500
     page = 1
     scans_collection = get_a_list_of_scans(
         offset=offset, limit=limit, from_date=from_date, to_date=to_date, sort=["-created_at"]
@@ -78,7 +78,7 @@ def calculate_statistics_of_sast_results(sast_results: List[SastResult]) -> List
 
 def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
     offset = 0
-    limit = 250
+    limit = 500
     page = 1
     sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit)
     total_count = int(sast_results_collection.get("totalCount"))

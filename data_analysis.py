@@ -4,11 +4,9 @@ from src.args import get_command_line_arguments
 from src.db import create_db
 from src.excel import create_xlsx_file
 from src.cx import (
-    # get_cx_one_data_and_write_to_db,
     get_date_range,
     get_latest_per_project,
     get_all_scans_within_date_range,
-    get_project_id_with_names,
 )
 from src.cx.scan import get_query_counters
 
@@ -34,27 +32,29 @@ if __name__ == '__main__':
     logger.info(f"number of scans within the date range: {len(all_scans_within_date_range)}")
     accepted_branches = ["master", "release", "develop", "rc", "stage"]
     all_projects_scanned_within_date_range = list(set(
-        [(scan.id, scan.project_id, scan.branch, scan.created_at) for scan in all_scans_within_date_range]
+        [(
+            scan.id, 
+            scan.project_id, 
+            scan.project_name, 
+            scan.branch, 
+            scan.created_at
+        ) for scan in all_scans_within_date_range]
     ))
-    all_projects_with_latest_scan = get_latest_per_project(all_projects_scanned_within_date_range)
-    logger.info(f"number of projects within the date range: {len(all_projects_with_latest_scan)}")
-    project_id_with_names = get_project_id_with_names([item[1] for item in all_projects_with_latest_scan])
+    all_latest_scans = get_latest_per_project(all_projects_scanned_within_date_range)
+    logger.info(f"number of projects within the date range: {len(all_latest_scans)}")
     db_connection = create_db()
-    # get_cx_one_data_and_write_to_db(
-    #     queries=queries,
-    #     severities=severity_list,
-    #     projects_scanned=all_projects_with_latest_scan,
-    #     db_connection=db_connection,
-    #     project_id_with_names=project_id_with_names,
-    # )
     try:
-        for project in all_projects_with_latest_scan:
-            scan_id = project[0]
-            project_id = project[1]
-            branch = project[2]
-            project_name = project_id_with_names[project_id]
+        for scan in all_latest_scans:
+            scan_id = scan[0]
+            project_id = scan[1]
+            project_name = scan[2]
+            branch = scan[3]
             logger.info(
-                f"HTTP call to get data for project id: {project_id} "
+                f"HTTP call to get data for" 
+                f"scan id: {scan_id}, "
+                f"project id: {project_id}, "
+                f"project name: {project_name}, "
+                f"branch: {branch} "
             )
             queries_counters = []
             try:
@@ -79,15 +79,16 @@ if __name__ == '__main__':
                 with db_connection:
                     db_connection.execute(
                         f"INSERT INTO results "
-                        f"(PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
-                        f"VALUES (?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
+                        f"(SCAN_ID, PROJECT_ID, PROJECT_NAME, BRANCH, QUERY_NAME, RESULT_SEVERITY, RESULT_QUANTITY)"
+                        f"VALUES (?,?,?,?,?,?,?) ON CONFLICT (PROJECT_ID, BRANCH, QUERY_NAME) "
                         f"DO UPDATE SET RESULT_QUANTITY = ?",
-                        (project_id, project_name, branch, query_name, result_severity,
+                        (scan_id, project_id, project_name, branch, query_name, result_severity,
                         result_quantity,
                         result_quantity)
                     )
             logger.info(f"finish write data "
-                        f"for project id: {project_id}, "
+                        f"scan id: {scan_id}, "
+                        f"project id: {project_id}, "
                         f"project name: {project_name}, "
                         f"branch: {branch} "
                         f" into in-memory sqlite")
