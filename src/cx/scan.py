@@ -80,7 +80,7 @@ def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
     offset = 0
     limit = 500
     page = 1
-    sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit)
+    sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit, state=["TO_VERIFY"], include_nodes=False,)
     total_count = int(sast_results_collection.get("totalCount"))
     if total_count > 1000:
         return []
@@ -90,7 +90,7 @@ def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
             offset = page * limit
             if offset >= total_count:
                 break
-            sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit)
+            sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit, state=["TO_VERIFY"], include_nodes=False,)
             page += 1
             sast_results.extend(sast_results_collection.get("results"))
     statistics = calculate_statistics_of_sast_results(sast_results=sast_results)
