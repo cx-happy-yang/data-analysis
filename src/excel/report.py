@@ -29,7 +29,7 @@ def create_xlsx_file(db_connection, severities, report_file_path):
                                         'bg_color': '#F0F0F0',
                                         'border_color': '#A0A0A0'})
     worksheet.merge_range('A1:A2', '')
-    worksheet.freeze_panes(0, 2)  # Freeze the first column.
+    worksheet.freeze_panes(0, 3)  # Freeze the first column.
     # query_column_dict record the query: column information
     query_column_dict = {}
     # project_id_row_dict record the project_id: row information
