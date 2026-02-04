@@ -1,4 +1,4 @@
-curl -LO https://github.com/HappyY19/data-analysis/releases/download/v0.1.9/data_analysis
+curl -LO https://github.com/HappyY19/data-analysis/releases/download/v0.2.0/data_analysis
 chmod +x ./data_analysis
 source ~/.secrets
 ./data_analysis \
