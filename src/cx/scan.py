@@ -107,7 +107,7 @@ def get_query_counters(
     if statistics_from_sast_results:
         result = statistics_from_sast_results
     else:
-        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is less than or equal to 1000, will get query counters from scan summary")
+        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is greater than 1000, will get query counters from scan summary")
         scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
         scan_summaries = scan_summary.get("scansSummaries")
         if scan_summaries:
