@@ -1,5 +1,6 @@
 import datetime
 from typing import List
+from src.log import logger
 from CheckmarxPythonSDK.CxOne import (
     get_last_scan_info,
     get_summary_for_many_scans,
@@ -83,6 +84,7 @@ def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
     sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit, state=["TO_VERIFY"], include_nodes=False,)
     total_count = int(sast_results_collection.get("totalCount"))
     if total_count > 1000:
+        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is {total_count}, it is bigger than 1000, will return an empty list []")
         return []
     sast_results = sast_results_collection.get("results")
     if total_count > limit:
@@ -105,6 +107,7 @@ def get_query_counters(
     if statistics_from_sast_results:
         result = statistics_from_sast_results
     else:
+        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is less than or equal to 1000, will get query counters from scan summary")
         scan_summary = get_summary_for_many_scans(scan_ids=[scan_id], include_queries=True)
         scan_summaries = scan_summary.get("scansSummaries")
         if scan_summaries:
