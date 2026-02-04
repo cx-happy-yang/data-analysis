@@ -10,4 +10,4 @@ source ~/.secrets
 --include_not_exploitable false \
 --range_type CUSTOM \
 --date_from 2024-06-01-0-0-0 \
---date_to 2026-02-31-0-0-0
+--date_to 2026-02-28-0-0-0

@@ -13,7 +13,7 @@ data_analysis --cxone_access_control_url https://eu.iam.checkmarx.net \
 --include_not_exploitable false \
 --range_type CUSTOM \
 --date_from 2023-06-01-0-0-0 \
---date_to 2026-02-31-0-0-0
+--date_to 2026-02-28-0-0-0
 ```
  
  
