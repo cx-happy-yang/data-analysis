@@ -1,5 +1,5 @@
 import datetime
-from typing import List
+from typing import List, Tuple
 from src.log import logger
 from CheckmarxPythonSDK.CxOne import (
     get_last_scan_info,
@@ -77,15 +77,15 @@ def calculate_statistics_of_sast_results(sast_results: List[SastResult]) -> List
     return statistics
 
 
-def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
+def get_part_sast_results_by_scan_id(scan_id: str) -> Tuple[List[dict], int]:
     offset = 0
     limit = 500
     page = 1
     sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit, state=["TO_VERIFY"], include_nodes=False,)
     total_count = int(sast_results_collection.get("totalCount"))
-    if total_count > 1000:
-        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is {total_count}, it is bigger than 1000, will return an empty list []")
-        return []
+    if total_count > 1000 or total_count == 0:
+        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is {total_count}, it is bigger than 1000 or equals to 0, will return an empty list []")
+        return [], total_count
     sast_results = sast_results_collection.get("results")
     if total_count > limit:
         while True:
@@ -96,15 +96,18 @@ def get_part_sast_results_by_scan_id(scan_id: str) -> List[dict]:
             page += 1
             sast_results.extend(sast_results_collection.get("results"))
     statistics = calculate_statistics_of_sast_results(sast_results=sast_results)
-    return statistics
+    return statistics, len(sast_results)
 
 
 def get_query_counters(
        scan_id: str
 ) -> List[dict]:
     result = []
-    statistics_from_sast_results = get_part_sast_results_by_scan_id(scan_id=scan_id)
-    if statistics_from_sast_results:
+    statistics_from_sast_results, total_count = get_part_sast_results_by_scan_id(scan_id=scan_id)
+    if total_count == 0:
+        logger.info(f"scan_id: {scan_id}, totalCount of SAST results is 0, will return an empty list []")
+        result = []
+    elif total_count > 0 and total_count <= 1000:
         result = statistics_from_sast_results
     else:
         logger.info(f"scan_id: {scan_id}, totalCount of SAST results is greater than 1000, will get query counters from scan summary")
