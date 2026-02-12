@@ -95,7 +95,7 @@ def get_part_sast_results_by_scan_id(scan_id: str) -> Tuple[List[dict], int]:
             sast_results_collection = get_sast_results_by_scan_id(scan_id=scan_id, offset=offset, limit=limit, state=["TO_VERIFY"], include_nodes=False,)
             page += 1
             sast_results.extend(sast_results_collection.get("results"))
-    if len(sast_results) < 10:
+    if len(sast_results) < 50:
         logger.info(f"scan_id: {scan_id}, result length is less than 10, result: {sast_results}")
     statistics = calculate_statistics_of_sast_results(sast_results=sast_results)
     return statistics, len(sast_results)
